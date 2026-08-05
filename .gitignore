@@ -1,7 +1,6 @@
 backups/
 import_tmp/
 data/
-app.py
 run_server.bat
 run.bat
 run.sh
