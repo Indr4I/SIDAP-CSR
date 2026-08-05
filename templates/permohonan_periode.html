@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Permohonan per Periode{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-1">Permohonan &mdash; Tahun &amp; Bulan</h4>
+<div class="text-secondary mb-3" style="font-size:13px">Rekap permohonan masuk berdasarkan periode waktu</div>
+
+<!-- Form Filter Pilihan Tahun (Style Laporan Bulanan) -->
+<form class="row g-2 mb-3" id="form-filter">
+  <div class="col-3">
+    <select class="form-select form-select-sm" id="select-tahun" name="tahun">
+      <!-- Diisi dinamis oleh JS -->
+    </select>
+  </div>
+  <div class="col-3">
+    <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Tampilkan</button>
+  </div>
+</form>
+
+<div id="area-konten-periode">
+  <div class="text-secondary py-3">Memuat data periode...</div>
+</div>
+
+<!-- JavaScript Logic -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    let currentTahun = urlParams.get('tahun') || '';
+    
+    const formFilter = document.getElementById('form-filter');
+    const selectTahun = document.getElementById('select-tahun');
+    let dropdownsLoaded = false;
+
+    formFilter.addEventListener('submit', function(e) {
+        e.preventDefault();
+        loadPeriode(selectTahun.value);
+    });
+
+    function loadPeriode(tahunTarget) {
+        fetch(`/api/permohonan-periode-stats?tahun=${tahunTarget}`)
+            .then(res => res.json())
+            .then(data => {
+                const area = document.getElementById('area-konten-periode');
+
+                if (!dropdownsLoaded && data.tahun_list) {
+                    selectTahun.innerHTML = '';
+                    if (data.tahun_list.length === 0) {
+                        selectTahun.innerHTML = '<option value="">(Belum Ada Data)</option>';
+                        area.innerHTML = '<div class="text-secondary py-3">Belum ada data permohonan.</div>';
+                        return;
+                    }
+                    data.tahun_list.forEach(t => {
+                        const opt = document.createElement('option');
+                        opt.value = t;
+                        opt.innerText = t;
+                        if (t === data.tahun_terpilih) opt.selected = true;
+                        selectTahun.appendChild(opt);
+                    });
+                    dropdownsLoaded = true;
+                }
+
+                let chartBarsHtml = '';
+                let cardSummaryHtml = '';
+
+                data.ringkasan.forEach(r => {
+                    const h = r.jumlah ? Math.round((r.jumlah / data.max_jumlah) * 90) : 4;
+                    const bg = (r.jumlah === data.max_jumlah && r.jumlah > 0) ? 'var(--bs-dark)' : '#a9c6f5';
+                    
+                    chartBarsHtml += `
+                    <a href="/permohonan?tahun=${data.tahun_terpilih}&bulan=${r.nomor}" class="flex-fill text-decoration-none"
+                       title="${r.nama}: ${r.jumlah} permohonan (SIB ${r.sib}, BK ${r.bk})">
+                      <div style="height:${h}px; min-height:4px; border-radius:3px 3px 0 0; background: ${bg};"></div>
+                    </a>`;
+
+                    cardSummaryHtml += `
+                    <div class="col-3">
+                      <a href="/permohonan?tahun=${data.tahun_terpilih}&bulan=${r.nomor}" class="text-decoration-none text-dark">
+                        <div class="border rounded p-2 text-center">
+                          <div class="text-secondary" style="font-size:11px">${r.nama}</div>
+                          <div class="fw-bold">${r.jumlah}</div>
+                          <div class="text-secondary" style="font-size:10px">${r.sib} SIB &middot; ${r.bk} BK</div>
+                        </div>
+                      </a>
+                    </div>`;
+                });
+
+                area.innerHTML = `
+                <div class="stat-card mb-3">
+                  <div class="fw-bold mb-2" style="font-size:14px">Permohonan masuk per bulan &mdash; ${data.tahun_terpilih}</div>
+                  <div class="d-flex align-items-end gap-2" style="height:110px">
+                    ${chartBarsHtml}
+                  </div>
+                  <div class="d-flex gap-2 mt-1">
+                    ${data.ringkasan.map(r => `<div class="flex-fill text-center" style="font-size:11px; color:#8a8f98">${r.nama}</div>`).join('')}
+                  </div>
+                </div>
+
+                <div class="stat-card">
+                  <div class="fw-bold mb-2" style="font-size:14px">Ringkasan per bulan</div>
+                  <div class="row g-2">
+                    ${cardSummaryHtml}
+                  </div>
+                </div>`;
+            });
+    }
+
+    loadPeriode(currentTahun);
+});
+</script>
+{% endblock %}

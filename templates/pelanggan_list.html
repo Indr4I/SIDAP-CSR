@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+{% block title %}Semua Pelanggan{% endblock %}
+{% block content %}
+<style>
+  @media print {
+    /* Minta printer otomatis set mode Landscape (Tidur) */
+    @page {
+      size: landscape;
+      margin: 8mm;
+    }
+
+    /* Supaya teks kolom tabel tidak terlipat-lipat ekstrem */
+    #area-cetak table th, 
+    #area-cetak table td {
+      white-space: nowrap !important;
+      font-size: 10px !important;
+      padding: 6px 8px !important;
+    }
+
+    /* Khusus Alamat & Nama Boleh Multi-line Tapi Rapi */
+    #area-cetak table td:nth-child(2),
+    #area-cetak table td:nth-child(3) {
+      white-space: normal !important;
+      max-width: 180px;
+    }
+  }
+</style>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-1">
+  <div>
+    <h4 class="fw-bold mb-0 no-print">Semua Pelanggan</h4>
+    <div class="text-secondary no-print" style="font-size:13px" id="txt-total-info">Memuat informasi...</div>
+  </div>
+  <div class="d-flex gap-2 mt-2 mt-sm-0 no-print">
+    <button onclick="cetakSemuaPelanggan()" class="btn btn-dark btn-sm">Cetak / simpan sebagai PDF</button>
+    <a id="btn-export-xlsx" href="#" class="btn btn-outline-secondary btn-sm">Unduh .xlsx</a>
+    <a href="{{ url_for('pelanggan_tambah') }}" class="btn btn-dark btn-sm">+ Tambah pelanggan</a>
+  </div>
+</div>
+
+<!-- Form Filter Pencarian (Mencegat submit bawaan browser agar tidak reload) -->
+<form class="row g-2 mb-3 no-print" id="form-filter">
+  <div class="col-3">
+    <input class="form-control form-control-sm" id="filter-q" placeholder="Cari nama / no. instalasi">
+  </div>
+  <div class="col-3">
+    <select class="form-select form-select-sm" id="filter-kecamatan">
+      <option value="semua">Semua kecamatan</option>
+      <!-- Option kecamatan akan dimasukkan secara dinamis oleh JavaScript -->
+    </select>
+  </div>
+  <div class="col-3">
+    <select class="form-select form-select-sm" id="filter-status">
+      <option value="semua">Semua status</option>
+      <option value="SIB">SIB</option>
+      <option value="BK">BK</option>
+    </select>
+  </div>
+  <div class="col-2"><button type="submit" class="btn btn-outline-secondary btn-sm w-100">Filter</button></div>
+  
+  <!-- Info badge filter periode otomatis (jika ada data tahun/bulan dari link dashboard) -->
+  <div class="col-12" id="badge-periode-area" style="display: none;">
+    <span class="badge text-bg-light" style="font-size:11px">
+      Difilter periode: <span id="txt-periode-info"></span>
+      <button type="button" id="btn-reset-periode" class="btn btn-link text-danger text-decoration-none p-0 ms-1" style="font-size: 11px; vertical-align: baseline;">&times; hapus filter periode</button>
+    </span>
+  </div>
+</form>
+
+<div id="area-cetak" class="bg-white rounded border shadow-sm" style="overflow-x:auto">
+<table class="table table-hover align-middle mb-0 compact-table" style="font-size:12px; border-color: #edf2f7; width: 100%;">
+  <thead class="table-light">
+    <tr style="color: #1e293b; font-weight: 700; font-size: 12px;">
+      <th class="text-center" style="width: 45px; padding: 10px 8px;">No</th>
+      <th style="width: 200px; padding: 10px 8px;">Nama Pelanggan</th>
+      <th style="width: 200px; padding: 10px 8px;">Alamat</th>
+      <th style="width: 140px; padding: 10px 8px;">Kel / Kec</th>
+      <th class="text-center" style="width: 100px; padding: 10px 8px;">No. Instalasi</th>
+      <th class="text-center" style="width: 110px; padding: 10px 8px;">Tgl Permohonan Masuk</th>
+      <th class="text-center" style="width: 95px; padding: 10px 8px;">Tgl Pasang</th>
+      <th class="text-center" style="width: 70px; padding: 10px 8px;">Diameter</th>
+      <th class="text-center" style="width: 85px; padding: 10px 8px;">Tekanan Air</th>
+      <th class="text-center" style="width: 65px; padding: 10px 8px;">Status</th>
+      <th style="width: 120px; padding: 10px 8px;">Petugas Pasang</th>
+      <th style="width: 120px; padding: 10px 8px;">Petugas Survey</th>
+      <th class="text-end no-print" style="width: 100px; padding: 10px 12px;">Aksi</th>
+    </tr>
+  </thead>
+  <tbody id="tabel-pelanggan">
+    <tr><td colspan="13" class="text-secondary text-center py-3">Memuat data pelanggan...</td></tr>
+  </tbody>
+</table>
+</div>
+
+<nav class="mt-3 no-print d-flex justify-content-end align-items-center gap-2" id="pagination-container" style="display: none;">
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-prev-page">&laquo; Sebelumnya</button>
+  <span style="font-size:13px" class="text-secondary">
+    Halaman <span id="txt-current-page">1</span> dari <span id="txt-total-pages">1</span>
+  </span>
+  <input type="number" min="1" class="form-control form-control-sm" id="input-goto-page" style="width:70px" placeholder="ke #">
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-goto-page">Ke halaman</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-next-page">Selanjutnya &raquo;</button>
+</nav>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    let currentPage = 1;
+    let kecamatanLoaded = false;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    let filterTahun = urlParams.get('tahun') || '';
+    let filterBulan = urlParams.get('bulan') || '';
+    let filterKecamatanUrl = urlParams.get('kecamatan') || '';
+
+    const formFilter = document.getElementById('form-filter');
+    const tbody = document.getElementById('tabel-pelanggan');
+    const txtTotalInfo = document.getElementById('txt-total-info');
+    const selectKecamatan = document.getElementById('filter-kecamatan');
+    const badgePeriodeArea = document.getElementById('badge-periode-area');
+    const txtPeriodeInfo = document.getElementById('txt-periode-info');
+    const btnResetPeriode = document.getElementById('btn-reset-periode');
+    const paginationContainer = document.getElementById('pagination-container');
+    const btnExportXlsx = document.getElementById('btn-export-xlsx');
+    const btnPrevPage = document.getElementById('btn-prev-page');
+    const btnNextPage = document.getElementById('btn-next-page');
+    const btnGotoPage = document.getElementById('btn-goto-page');
+    const inputGotoPage = document.getElementById('input-goto-page');
+    const txtCurrentPage = document.getElementById('txt-current-page');
+    const txtTotalPages = document.getElementById('txt-total-pages');
+    let lastTotalPages = 1;
+
+    btnPrevPage.addEventListener('click', function() {
+        if (currentPage > 1) {
+            currentPage -= 1;
+            loadPelanggan();
+        }
+    });
+
+    btnNextPage.addEventListener('click', function() {
+        if (currentPage < lastTotalPages) {
+            currentPage += 1;
+            loadPelanggan();
+        }
+    });
+
+    btnGotoPage.addEventListener('click', function() {
+        let target = parseInt(inputGotoPage.value, 10);
+        if (!target || target < 1) return;
+        if (target > lastTotalPages) target = lastTotalPages;
+        currentPage = target;
+        loadPelanggan();
+    });
+
+    inputGotoPage.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            btnGotoPage.click();
+        }
+    });
+
+    // Menangani pengiriman form filter
+    formFilter.addEventListener('submit', function(e) {
+        e.preventDefault();
+        currentPage = 1; 
+        loadPelanggan();
+    });
+
+    // Menangani aksi hapus filter periode
+    btnResetPeriode.addEventListener('click', function() {
+        filterTahun = '';
+        filterBulan = '';
+        badgePeriodeArea.style.display = 'none';
+        currentPage = 1;
+        loadPelanggan();
+    });
+
+    // Bikin satu <tr> baris pelanggan -- dipakai bareng oleh loadPelanggan()
+    // (tampilan biasa per halaman) dan cetakSemuaPelanggan() (cetak semua
+function buatPelangganTr(r, no) {
+    const tr = document.createElement('tr');
+
+    const badgeClass = r.status === 'SIB' ? 'badge-sib' : (r.status === 'BK' ? 'badge-bk' : 'bg-secondary text-white');
+    const statusHtml = r.status ? `<span class="badge ${badgeClass}">${r.status}</span>` : '—';
+    
+    let tombolAksiHtml = '';
+    
+    if (r.instalasi_id) {
+        tombolAksiHtml = `
+            <a href="/instalasi/${r.instalasi_id}/edit" class="btn btn-sm btn-outline-primary px-2 py-1">Edit</a>
+            <form method="post" action="/instalasi/${r.instalasi_id}/hapus" class="d-inline" onsubmit="konfirmasiHapus(event, this, 'Instalasi ${r.nomor_instalasi} milik ${r.nama} akan dihapus.')">
+                <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1">Hapus</button>
+            </form>
+        `;
+    } else {
+        tombolAksiHtml = `
+            <a href="/pelanggan/${r.pelanggan_id}/instalasi/tambah" class="btn btn-sm btn-outline-success px-2 py-1">+ Instalasi</a>
+            <form method="post" action="/pelanggan/${r.pelanggan_id}/hapus" class="d-inline" onsubmit="konfirmasiHapus(event, this, 'Data pelanggan ${r.nama} akan dihapus.')">
+                <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1">Hapus</button>
+            </form>
+        `;
+    }
+
+    tr.innerHTML = `
+        <td class="text-center text-secondary">${no}</td>
+        <td class="fw-bold">${r.nama}</td>
+        <td>${r.alamat || '—'}</td>
+        <td>
+            <div class="fw-semibold">${r.kelurahan || '—'}</div>
+            <div class="text-secondary" style="font-size:11px">${r.kecamatan || '—'}</div>
+        </td>
+        <td class="fw-bold text-primary text-center">${r.nomor_instalasi || '—'}</td>
+        <td class="text-center">${r.tanggal_permohonan_masuk || '—'}</td>
+        <td class="text-center">${r.tanggal_pasang || '—'}</td>
+        <td class="text-center">${r.diameter_pipa ? 'ø' + r.diameter_pipa : '—'}</td>
+        <td class="text-center">${r.tekanan_air !== '' && r.tekanan_air !== null ? r.tekanan_air : '—'}</td>
+        <td class="text-center">${statusHtml}</td>
+        <td>${r.petugas || '—'}</td>
+        <td>${r.petugas_survey || '—'}</td>
+        <!-- Penambahan kelas no-print di td Aksi di bawah ini -->
+        <td class="text-center no-print">
+            <div class="d-flex gap-1 justify-content-center">
+                ${tombolAksiHtml}
+            </div>
+        </td>
+    `;
+    return tr;
+}
+
+    // Tombol "Cetak" manggil ini -- narik SEMUA baris yang cocok filter yang
+    // lagi aktif (bukan cuma 30 baris di halaman ini), render semuanya ke
+    // tabel, baru trigger dialog print. Setelah print ditutup, tampilan
+    // balik lagi ke mode per-halaman biasa.
+window.cetakSemuaPelanggan = function() {
+    const q = document.getElementById('filter-q').value.trim();
+    let kec = selectKecamatan.value;
+    if (filterKecamatanUrl && selectKecamatan.value === 'semua') { kec = filterKecamatanUrl; }
+    const status = document.getElementById('filter-status').value;
+    const url = `/api/pelanggan?per_page=all&q=${encodeURIComponent(q)}&kecamatan=${kec}&status=${status}&tahun=${filterTahun}&bulan=${filterBulan}`;
+
+    tbody.innerHTML = '<tr><td colspan="13" class="text-secondary text-center py-3">⚡ Menyiapkan data cetak... Mohon tunggu sebentar.</td></tr>';
+
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error("HTTP error " + response.status);
+            return response.json();
+        })
+        .then(data => {
+            tbody.innerHTML = '';
+            
+            // Gunakan DocumentFragment agar injection ke DOM instan (1x hit)
+            const fragment = document.createDocumentFragment();
+            let no = 1;
+            (data.rows || []).forEach(r => {
+                fragment.appendChild(buatPelangganTr(r, no));
+                no++;
+            });
+            tbody.appendChild(fragment);
+
+            paginationContainer.style.display = 'none';
+
+            // Gunakan requestAnimationFrame agar browser selesai menggambar sebelum dialog print
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    window.print();
+                    loadPelanggan();
+                }, 100);
+            });
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Gagal menyiapkan data untuk dicetak. Coba lagi.');
+            loadPelanggan();
+        });
+};
+
+    function loadPelanggan() {
+        tbody.innerHTML = '<tr><td colspan="13" class="text-secondary text-center py-3">Sedang mengambil data terbaru...</td></tr>';
+        
+        const q = document.getElementById('filter-q').value.trim();
+        let kec = selectKecamatan.value;
+        if (filterKecamatanUrl && selectKecamatan.value === 'semua') {
+            kec = filterKecamatanUrl;}
+        const status = document.getElementById('filter-status').value;
+        const exportUrl = `/pelanggan/export?page=${currentPage}&q=${encodeURIComponent(q)}&kecamatan=${kec}&status=${status}&tahun=${filterTahun}&bulan=${filterBulan}`;
+        if (btnExportXlsx) {
+            btnExportXlsx.href = exportUrl;
+        }
+
+        // Racik URL request API
+        const url = `/api/pelanggan?page=${currentPage}&q=${encodeURIComponent(q)}&kecamatan=${kec}&status=${status}&tahun=${filterTahun}&bulan=${filterBulan}`;
+
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error("HTTP error " + response.status);
+                return response.json();
+            })
+            .then(data => {
+                // 1. Render data dropdown kecamatan (hanya sekali di awal)
+                if (!kecamatanLoaded && data.semua_kecamatan) {
+                    data.semua_kecamatan.forEach(k => {
+                        const opt = document.createElement('option');
+                        opt.value = k;
+                        opt.innerText = k;
+                        selectKecamatan.appendChild(opt);
+                    });
+                    if (filterKecamatanUrl) {
+                        selectKecamatan.value = filterKecamatanUrl;}
+                    kecamatanLoaded = true;
+                }
+
+                // 2. Tampilkan badge informasi jika filter periode aktif
+                if (filterTahun || filterBulan) {
+                    txtPeriodeInfo.innerText = `${filterBulan}/${filterTahun}`;
+                    badgePeriodeArea.style.display = 'block';
+                }
+
+                // 3. Set teks total pelanggan terdaftar
+                txtTotalInfo.innerText = `${data.total} baris data pelanggan terpasang`;
+
+                // 3.5. Siapkan header khusus untuk tampilan print
+                const printHeader = document.getElementById('print-period-info');
+                if (filterTahun || filterBulan) {
+                    const bulanDisplay = filterBulan ? filterBulan : 'Semua';
+                    const tahunDisplay = filterTahun ? filterTahun : 'Semua';
+                    printHeader.innerText = `Data Pelanggan Bulan ${bulanDisplay} / Tahun ${tahunDisplay}`;
+                } else {
+                    printHeader.innerText = 'DATA PELANGGAN';
+                }
+                printHeader.style.display = 'none';
+                printHeader.classList.add('print-only');
+
+                // 4. Render baris tabel pelanggan
+                tbody.innerHTML = '';
+                if (!data.rows || data.rows.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="13" class="text-secondary text-center py-3">Belum ada data yang cocok dengan filter ini.</td></tr>';
+                    paginationContainer.style.display = 'none';
+                    return;
+                }
+                let no = (currentPage - 1) * 30 + 1;
+                
+                data.rows.forEach(r => {
+                    tbody.appendChild(buatPelangganTr(r, no));
+                    no++;
+                });
+
+                // 5. Update navigasi prev/next + lompat-halaman
+                lastTotalPages = data.total_pages;
+                txtCurrentPage.innerText = data.page;
+                txtTotalPages.innerText = data.total_pages;
+                inputGotoPage.max = data.total_pages;
+                btnPrevPage.disabled = data.page <= 1;
+                btnNextPage.disabled = data.page >= data.total_pages;
+                paginationContainer.style.display = data.total_pages > 1 ? 'flex' : 'none';
+
+                currentPage = data.page;
+            })
+            .catch(err => {
+                console.error("Gagal memuat list pelanggan:", err);
+                tbody.innerHTML = '<tr><td colspan="13" class="text-danger text-center py-3">Terjadi kegagalan memproses data dari sistem server.</td></tr>';
+            });
+    }
+
+    // Eksekusi fungsi pertama kali saat halaman di-load
+    loadPelanggan();
+});
+</script>
+{% endblock %}
+
+{% block print_header %}
+<div style="display:flex; align-items:center; gap:12px;">
+  <div style="flex:0 0 80px;">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="logo" style="max-height:60px; max-width:80px;" onerror="this.style.display='none'">
+  </div>
+  <div style="flex:1; text-align:center; font-size:12px;">
+    <div style="font-weight:800; font-size:14px;">LAPORAN SEMUA PELANGGAN TERPASANG</div>
+    <div id="print-period-info" style="margin-top:4px; font-size:11px;"></div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Laporan Bulanan{% endblock %}
+{% block content %}
+<div class="no-print">
+  <h4 class="fw-bold mb-1">Laporan Bulanan</h4>
+  <div class="text-secondary mb-3" style="font-size:13px">Rekap SIB/BK per kecamatan untuk satu bulan tertentu</div>
+
+  <!-- Form Filter (Dicegat JS agar tidak reload halaman) -->
+  <form class="row g-2 mb-3" id="form-filter">
+    <div class="col-3">
+      <select class="form-select form-select-sm" id="select-tahun" name="tahun">
+        <!-- Diisi dinamis oleh JS -->
+      </select>
+    </div>
+    <div class="col-3">
+      <select class="form-select form-select-sm" id="select-bulan" name="bulan">
+        <!-- Diisi dinamis oleh JS -->
+      </select>
+    </div>
+    <div class="col-3"><button type="submit" class="btn btn-outline-secondary btn-sm w-100">Tampilkan</button></div>
+  </form>
+
+
+
+  <!-- Card Input Tanda Tangan (Format Baru) -->
+  <div class="card border-0 shadow-sm bg-light mb-3" style="max-width: 750px;">
+    <div class="card-body py-2 px-3">
+      <div class="fw-bold mb-2 text-dark" style="font-size:13px">Tanda Diketahui</div>
+      <div class="row g-2">
+        <!-- Sisi Kiri -->
+        <div class="col-md-6">
+          <input type="text" class="form-control form-control-sm mb-1" id="input-keterangan-kiri" value="Diperiksa Oleh :" oninput="updateFooterTTD()" placeholder="Keterangan Kiri">
+          <input type="text" class="form-control form-control-sm mb-1" id="input-jabatan-kiri" value="Kabag Perencana & Supervisi" oninput="updateFooterTTD()" placeholder="Jabatan Kiri">
+          <input type="text" class="form-control form-control-sm" id="input-nama-kiri" placeholder="Nama Pemangku Jabatan (Kiri)" oninput="updateFooterTTD()" placeholder="Nama Kiri">
+        </div>
+        <!-- Sisi Kanan -->
+        <div class="col-md-6">
+          <input type="text" class="form-control form-control-sm mb-1" id="input-kota-tgl" value="Pematangsiantar, {{ today }}" oninput="updateFooterTTD()" placeholder="Kota & Tanggal">
+          <input type="text" class="form-control form-control-sm mb-1" id="input-keterangan-kanan" value="Diperbuat Oleh :" oninput="updateFooterTTD()" placeholder="Keterangan Kanan">
+          <input type="text" class="form-control form-control-sm mb-1" id="input-jabatan-kanan" value="Kasubbag Perencana Jaringan" oninput="updateFooterTTD()" placeholder="Jabatan Kanan">
+          <input type="text" class="form-control form-control-sm" id="input-nama-kanan" placeholder="Nama Pemangku Jabatan (Kanan)" oninput="updateFooterTTD()" placeholder="Nama Kanan">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 mb-3">
+    <button onclick="window.print()" class="btn btn-primary btn-sm fw-bold px-3">Cetak / simpan sebagai PDF</button>
+    <a href="#" id="btn-unduh-excel" class="btn btn-outline-secondary btn-sm">Unduh sebagai .xlsx</a>
+  </div>
+
+</div>
+
+
+<hr class="no-print my-4">
+
+<!-- Area Cetak Laporan -->
+<div class="stat-card bg-white p-4 rounded border shadow-sm" id="area-cetak">
+  <div class="text-center mb-3">
+    <div style="flex:0 0 80px;">
+      <img src="{{ url_for('static', filename='logo.png') }}" alt="logo" style="max-height:60px; max-width:80px;" onerror="this.style.display='none'">
+    </div>
+    <div class="fw-bold" style="font-size:16px; text-decoration:underline">LAPORAN BULANAN</div>
+    <div style="font-size:13px">BULAN: <span id="txt-title-bulan">—</span> <span id="txt-title-tahun">—</span></div>
+  </div>
+
+  <table class="table table-sm table-bordered mb-0">
+    <thead>
+      <tr class="text-center fw-bold bg-light">
+        <th style="width:8%">NO</th>
+        <th>KECAMATAN</th>
+        <th style="width:15%">SIB</th>
+        <th style="width:15%">BK</th>
+        <th style="width:15%">JUMLAH</th>
+      </tr>
+    </thead>
+    <tbody id="tabel-laporan-body">
+      <tr><td colspan="5" class="text-center text-secondary py-3">Memuat data laporan...</td></tr>
+    </tbody>
+    <tfoot>
+      <tr class="fw-bold text-center bg-light">
+        <td colspan="2">JUMLAH</td>
+        <td id="txt-total-sib">0</td>
+        <td id="txt-total-bk">0</td>
+        <td id="txt-total-jumlah">0</td>
+      </tr>
+    </tfoot>
+  </table>
+
+<!-- FOOTER TANDA TANGAN -->
+<div class="footer-ttd mt-4" style="page-break-inside: avoid;">
+  <div class="d-flex justify-content-between text-dark" style="font-size: 12px; font-family: sans-serif;">
+    
+    <!-- SISI KIRI (Ubah class 'text-start' jadi 'text-center') -->
+    <div style="min-width: 250px;" class="text-center">
+      <div style="height: 18px;"></div> <!-- Penyeimbang tinggi kota & tanggal -->
+      <div id="txt-keterangan-kiri">Diperiksa Oleh :</div>
+      <div id="txt-jabatan-kiri" class="fw-semibold">Kabag Perencana & Supervisi</div>
+      <div style="height: 60px;"></div> <!-- Ruang tanda tangan -->
+      <div id="txt-nama-kiri" class="fw-bold text-decoration-underline">NAMA</div>
+    </div>
+
+    <!-- SISI KANAN (Tetap 'text-center') -->
+    <div style="min-width: 250px;" class="text-center">
+      <div id="txt-kota-tgl" class="mb-1">Pematangsiantar, {{ today }}</div>
+      <div id="txt-keterangan-kanan">Diperbuat Oleh :</div>
+      <div id="txt-jabatan-kanan" class="fw-semibold">Kasubbag Perencana Jaringan</div>
+      <div style="height: 60px;"></div> <!-- Ruang tanda tangan -->
+      <div id="txt-nama-kanan" class="fw-bold text-decoration-underline">NAMA</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- JavaScript Logic -->
+<script>
+function updateFooterTTD() {
+  document.getElementById('txt-keterangan-kiri').innerText = document.getElementById('input-keterangan-kiri').value;
+  document.getElementById('txt-jabatan-kiri').innerText = document.getElementById('input-jabatan-kiri').value;
+  document.getElementById('txt-nama-kiri').innerText = document.getElementById('input-nama-kiri').value;
+
+  document.getElementById('txt-kota-tgl').innerText = document.getElementById('input-kota-tgl').value;
+  document.getElementById('txt-keterangan-kanan').innerText = document.getElementById('input-keterangan-kanan').value;
+  document.getElementById('txt-jabatan-kanan').innerText = document.getElementById('input-jabatan-kanan').value;
+  document.getElementById('txt-nama-kanan').innerText = document.getElementById('input-nama-kanan').value;
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    const formFilter = document.getElementById('form-filter');
+    const selectTahun = document.getElementById('select-tahun');
+    const selectBulan = document.getElementById('select-bulan');
+    const btnUnduhExcel = document.getElementById('btn-unduh-excel');
+    
+    const txtTitleBulan = document.getElementById('txt-title-bulan');
+    const txtTitleTahun = document.getElementById('txt-title-tahun');
+    const tbody = document.getElementById('tabel-laporan-body');
+    
+    const txtTotalSib = document.getElementById('txt-total-sib');
+    const txtTotalBk = document.getElementById('txt-total-bk');
+    const txtTotalJumlah = document.getElementById('txt-total-jumlah');
+
+    let dropdownsLoaded = false;
+
+    formFilter.addEventListener('submit', function(e) {
+        e.preventDefault();
+        loadLaporanData(selectTahun.value, selectBulan.value);
+    });
+
+    function loadLaporanData(tahun = '', bulan = '') {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-3">Sedang mengambil data laporan...</td></tr>';
+
+        fetch(`/api/laporan-stats?tahun=${tahun}&bulan=${bulan}`)
+            .then(response => response.json())
+            .then(data => {
+                // 1. Render isi dropdown opsi filter (Hanya sekali di awal load)
+                if (!dropdownsLoaded) {
+                    // Isi opsi Tahun
+                    selectTahun.innerHTML = '';
+                    data.tahun_list.forEach(t => {
+                        const opt = document.createElement('option');
+                        opt.value = t;
+                        opt.innerText = t;
+                        if (t === data.tahun_terpilih) opt.selected = true;
+                        selectTahun.appendChild(opt);
+                    });
+
+                    // Isi opsi Bulan
+                    selectBulan.innerHTML = '';
+                    data.nama_bulan_list.forEach(([num, nama]) => {
+                        const strBulan = String(num).padStart(2, '0');
+                        const opt = document.createElement('option');
+                        opt.value = strBulan;
+                        opt.innerText = nama;
+                        if (strBulan === data.bulan_terpilih) opt.selected = true;
+                        selectBulan.appendChild(opt);
+                    });
+                    
+                    dropdownsLoaded = true;
+                }
+
+                // 2. Set teks judul kop cetak laporan
+                txtTitleBulan.innerText = data.nama_bulan.toUpperCase();
+                txtTitleTahun.innerText = data.tahun_terpilih;
+
+                // 3. Pasang tautan ekspor Excel yang dinamis sesuai filter aktif
+                btnUnduhExcel.href = `/laporan/unduh?tahun=${data.tahun_terpilih}&bulan=${data.bulan_terpilih}`;
+
+                // 4. Render isi baris tabel laporan
+                tbody.innerHTML = '';
+                if (!data.rows || data.rows.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-3">Belum ada data pada periode ini.</td></tr>';
+                    txtTotalSib.innerText = '0';
+                    txtTotalBk.innerText = '0';
+                    txtTotalJumlah.innerText = '0';
+                    return;
+                }
+
+                data.rows.forEach((r, idx) => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'text-center';
+                    tr.innerHTML = `
+                        <td>${idx + 1}</td>
+                        <td class="text-start">${r.kecamatan.toUpperCase()}</td>
+                        <td>${r.sib ? r.sib : '-'}</td>
+                        <td>${r.bk ? r.bk : '-'}</td>
+                        <td>${r.jumlah}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                // 5. Update baris total di bawah (tfoot)
+                txtTotalSib.innerText = data.total_sib;
+                txtTotalBk.innerText = data.total_bk;
+                txtTotalJumlah.innerText = data.total_jumlah;
+            })
+            .catch(err => {
+                console.error("Gagal memuat laporan:", err);
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-3">Gagal memproses data laporan dari server.</td></tr>';
+            });
+    }
+
+    // Jalankan pemuatan data awal otomatis
+    loadLaporanData();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+{% block title %}Permohonan{% endblock %}
+{% block content %}
+<div class="no-print">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-1">
+    <div>
+      <h4 class="fw-bold mb-0">Permohonan</h4>
+      <div class="text-secondary" style="font-size:13px" id="txt-total-info">Memuat informasi...</div>
+    </div>
+    <div class="d-flex gap-2 mt-2 mt-sm-0">
+      <button onclick="cetakSemuaPermohonan()" class="btn btn-dark btn-sm">Cetak / simpan sebagai PDF</button>
+      <a id="btn-export-xlsx" href="#" class="btn btn-outline-secondary btn-sm">Unduh .xlsx</a>
+      <a href="{{ url_for('permohonan_tambah') }}" class="btn btn-dark btn-sm">+ Catat permohonan baru</a>
+    </div>
+  </div>
+
+  <!-- Stat Cards Ringkasan -->
+  <div class="row g-2 mb-3">
+    <div class="col-3"><div class="stat-card"><div class="label">Menunggu survey</div><div class="value" id="stat-menunggu">...</div></div></div>
+    <div class="col-3"><div class="stat-card"><div class="label">Ditindaklanjuti</div><div class="value" style="color:#0284c7" id="stat-ditindaklanjuti">...</div></div></div>
+    <div class="col-3"><div class="stat-card"><div class="label">Selisih (kembali ke Hublang)</div><div class="value" style="color:#b45309" id="stat-selisih">...</div></div></div>
+    <div class="col-3"><div class="stat-card"><div class="label">Sudah jadi instalasi</div><div class="value" style="color:#15803d" id="stat-selesai">...</div></div></div>
+  </div>
+
+  <!-- Form Filter -->
+  <form class="row g-2 mb-3" id="form-filter">
+    <div class="col-md-2">
+      <input class="form-control form-control-sm" id="filter-q" placeholder="Cari nama / lokasi">
+    </div>
+    <div class="col-md-2">
+      <select class="form-select form-select-sm" id="filter-jenis">
+        <option value="semua">Semua jenis</option>
+        <option value="SIB">SIB (baru)</option>
+        <option value="BK">BK (buka kembali)</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <select class="form-select form-select-sm" id="filter-status">
+        <option value="semua">Semua status</option>
+        <option value="menunggu">Menunggu survey</option>
+        <option value="ditindaklanjuti">Ditindaklanjuti (belum jadi instalasi)</option>
+        <option value="selisih">Selisih</option>
+        <option value="selesai">Sudah jadi instalasi</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <select class="form-select form-select-sm" id="filter-kecamatan">
+        <option value="semua">Semua kecamatan</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <select class="form-select form-select-sm" id="select-sort-spk" onchange="loadPermohonanData()" placeholder="Sort SPK">
+        <option value="none" selected>Input Terbaru (Default)</option>
+        <option value="desc">SPK: Terbesar (Terbaru)</option>
+        <option value="asc">SPK: Terkecil (Terlama)</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Filter</button>
+    </div>
+
+    <!-- Badge Filter Periode -->
+    <div class="col-12" id="badge-periode-area" style="display: none;">
+      <span class="badge text-bg-light" style="font-size:11px">
+        Difilter periode: <span id="txt-periode-info"></span>
+        <button type="button" id="btn-reset-periode" class="btn btn-link text-danger text-decoration-none p-0 ms-1" style="font-size: 11px; vertical-align: baseline;">&times; hapus filter periode</button>
+      </span>
+    </div>
+  </form>
+</div>
+
+<!-- Tabel Data -->
+<div id="area-cetak" class="bg-white rounded border shadow-sm" style="overflow-x:auto">
+  <table class="table table-hover align-middle mb-0 compact-table">
+    <thead class="table-light">
+      <tr>
+        <th class="text-center" style="width: 35px">No</th>
+        <th>Nama Pelanggan</th>
+        <th>Alamat</th>
+        <th>Kel / Kec</th>
+        <th class="text-center" style="width: 55px">SPK</th>
+        <th class="text-center">Ke Perencana</th>
+        <th class="text-center">Survey</th>
+        <th class="text-center">Kirim Hublang</th>
+        <th class="text-center">Kembali Hublang</th>
+        <th>Petugas</th>
+        <th class="text-center">Status</th>
+        <th>Keterangan</th>
+        <th class="text-end no-print">Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="tabel-permohonan">
+      <tr><td colspan="13" class="text-secondary text-center py-3">Memuat data permohonan...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Pagination Navigasi -->
+<nav class="mt-3 no-print d-flex justify-content-end align-items-center gap-2" id="pagination-container" style="display: none;">
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-prev-page">&laquo; Sebelumnya</button>
+  <span style="font-size:13px" class="text-secondary">
+    Halaman <span id="txt-current-page">1</span> dari <span id="txt-total-pages">1</span>
+  </span>
+  <input type="number" min="1" class="form-control form-control-sm" id="input-goto-page" style="width:70px" placeholder="ke #">
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-goto-page">Ke halaman</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-next-page">Selanjutnya &raquo;</button>
+</nav>
+
+<!-- JavaScript Logika CSR AJAX -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    let currentPage = 1;
+    let kecamatanLoaded = false;
+    let lastTotalPages = 1;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    let filterTahun = urlParams.get('tahun') || '';
+    let filterBulan = urlParams.get('bulan') || '';
+    let initialKecamatanFromUrl = urlParams.get('kecamatan') || '';
+
+    const formFilter = document.getElementById('form-filter');
+    const tbody = document.getElementById('tabel-permohonan');
+    const txtTotalInfo = document.getElementById('txt-total-info');
+    const selectKecamatan = document.getElementById('filter-kecamatan');
+    const selectSortSpk = document.getElementById('select-sort-spk');
+    const badgePeriodeArea = document.getElementById('badge-periode-area');
+    const txtPeriodeInfo = document.getElementById('txt-periode-info');
+    const btnResetPeriode = document.getElementById('btn-reset-periode');
+    const paginationContainer = document.getElementById('pagination-container');
+    const btnExportXlsx = document.getElementById('btn-export-xlsx');
+    const btnPrevPage = document.getElementById('btn-prev-page');
+    const btnNextPage = document.getElementById('btn-next-page');
+    const btnGotoPage = document.getElementById('btn-goto-page');
+    const inputGotoPage = document.getElementById('input-goto-page');
+    const txtCurrentPage = document.getElementById('txt-current-page');
+    const txtTotalPages = document.getElementById('txt-total-pages');
+
+    btnPrevPage.addEventListener('click', function() {
+        if (currentPage > 1) {
+            currentPage -= 1;
+            loadPermohonan();
+        }
+    });
+
+    btnNextPage.addEventListener('click', function() {
+        if (currentPage < lastTotalPages) {
+            currentPage += 1;
+            loadPermohonan();
+        }
+    });
+
+    btnGotoPage.addEventListener('click', function() {
+        let target = parseInt(inputGotoPage.value, 10);
+        if (!target || target < 1) return;
+        if (target > lastTotalPages) target = lastTotalPages;
+        currentPage = target;
+        loadPermohonan();
+    });
+
+    inputGotoPage.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            btnGotoPage.click();
+        }
+    });
+
+    formFilter.addEventListener('submit', function(e) {
+        e.preventDefault();
+        currentPage = 1;
+        loadPermohonan();
+    });
+    
+    selectSortSpk.addEventListener('change', function() {
+        currentPage = 1;
+        loadPermohonan();
+    });
+
+    btnResetPeriode.addEventListener('click', function() {
+        filterTahun = '';
+        filterBulan = '';
+        badgePeriodeArea.style.display = 'none';
+        currentPage = 1;
+        loadPermohonan();
+    });
+
+
+function buatPermohonanTr(r, no) {
+    let statusBadge;
+    if (r.instalasi_id) {
+        statusBadge = '<span class="badge text-bg-success">Terpasang</span>';
+    } else if (r.ditindaklanjuti === 1) {
+        statusBadge = '<span class="badge text-bg-info">Ditindaklanjuti</span>';
+    } else if (r.ditindaklanjuti === 0) {
+        statusBadge = '<span class="badge text-bg-warning">Selisih</span>';
+    } else {
+        statusBadge = '<span class="badge text-bg-light border">Menunggu</span>';
+    }
+    let btnInstalasi = (r.ditindaklanjuti === 1 && !r.instalasi_id)
+        ? `<a href="/permohonan/${r.id}/jadikan-instalasi" class="btn btn-sm btn-dark fw-bold px-2 py-1">+ Instalasi</a>`
+        : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="text-center text-secondary">${no}</td>
+        <td class="fw-bold text-dark">${r.nama_pelanggan}</td>
+        <td class="text-muted">${r.lokasi || '—'}</td>
+        <td>
+            <div>${r.kelurahan || '—'}</div>
+            <div class="text-secondary" style="font-size: 10px">${r.kecamatan || '—'}</div>
+        </td>
+        <td class="text-center fw-bold text-primary">${r.spk}</td>
+        <td class="text-center text-nowrap">${r.tanggal_permohonan || '—'}</td>
+        <td class="text-center text-nowrap">${r.tanggal_survey || '—'}</td>
+        <td class="text-center text-nowrap">${r.tanggal_dikirim_hublang || '—'}</td>
+        <td class="text-center text-nowrap">${r.tanggal_kembali_hublang || '—'}</td>
+        <td>${r.petugas_survey || '—'}</td>
+        <td class="text-center">${statusBadge}</td>
+        <td>${r.keterangan || '—'}</td>
+        <td class="text-end text-nowrap no-print">
+            <a href="/permohonan/${r.id}/edit" class="btn btn-sm btn-outline-primary fw-bold px-2 py-1">Edit</a>
+            ${btnInstalasi}
+            <form method="post" action="/permohonan/${r.id}/hapus" class="d-inline" onsubmit="konfirmasiHapus(event, this, 'Permohonan ${r.nama_pelanggan} akan dihapus.')">
+                <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1">Hapus</button>
+            </form>
+        </td>
+    `;
+    return tr;
+}
+
+window.cetakSemuaPermohonan = function() {
+    const q = document.getElementById('filter-q').value.trim();
+    const jenis = document.getElementById('filter-jenis').value;
+    const status = document.getElementById('filter-status').value;
+    const kec = selectKecamatan.value;
+    const sortSpk = selectSortSpk.value;
+
+    const url = `/api/permohonan?per_page=all&q=${encodeURIComponent(q)}&jenis=${jenis}&status=${status}&kecamatan=${kec}&sort_spk=${sortSpk}&tahun=${filterTahun}&bulan=${filterBulan}`;
+
+    tbody.innerHTML = '<tr><td colspan="13" class="text-secondary text-center py-3">⚡ Menyiapkan data cetak... Mohon tunggu sebentar.</td></tr>';
+
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error("HTTP error " + response.status);
+            return response.json();
+        })
+        .then(data => {
+            tbody.innerHTML = '';
+            
+            // Gunakan DocumentFragment agar 800+ baris masuk sekaligus ke tabel
+            const fragment = document.createDocumentFragment();
+            let no = 1;
+            (data.rows || []).forEach(r => {
+                fragment.appendChild(buatPermohonanTr(r, no));
+                no++;
+            });
+            tbody.appendChild(fragment);
+
+            paginationContainer.style.display = 'none';
+
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    window.print();
+                    loadPermohonan();
+                }, 100);
+            });
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Gagal menyiapkan data untuk dicetak. Coba lagi.');
+            loadPermohonan();
+        });
+};
+
+function loadPermohonan() {
+        tbody.innerHTML = '<tr><td colspan="13" class="text-secondary text-center py-3">Sedang mengambil data terbaru...</td></tr>';
+
+        const q = document.getElementById('filter-q').value.trim();
+        const jenis = document.getElementById('filter-jenis').value;
+        const status = document.getElementById('filter-status').value;
+        
+        // JIKA ada parameter kecamatan dari URL pada panggilan pertama, utamakan itu!
+        let kec = selectKecamatan.value;
+        if (initialKecamatanFromUrl && !kecamatanLoaded) {
+            kec = initialKecamatanFromUrl;
+        }
+
+        const sortSpk = selectSortSpk.value;
+
+        // Update Link Export Excel
+        if (btnExportXlsx) {
+            btnExportXlsx.href = `/permohonan/export?jenis=${jenis}&status=${status}&kecamatan=${encodeURIComponent(kec)}&tahun=${filterTahun}&bulan=${filterBulan}&q=${encodeURIComponent(q)}`;
+        }
+
+        const url = `/api/permohonan?page=${currentPage}&q=${encodeURIComponent(q)}&jenis=${jenis}&status=${status}&kecamatan=${encodeURIComponent(kec)}&sort_spk=${sortSpk}&tahun=${filterTahun}&bulan=${filterBulan}`;
+
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error("HTTP error " + response.status);
+                return response.json();
+            })
+            .then(data => {
+                // 1. Render Dropdown Kecamatan (Sekali di awal)
+                if (!kecamatanLoaded && data.semua_kecamatan) {
+                    data.semua_kecamatan.forEach(k => {
+                        const opt = document.createElement('option');
+                        opt.value = k;
+                        opt.innerText = k;
+                        selectKecamatan.appendChild(opt);
+                    });
+                    
+                    // Set nilai aktif dropdown agar sesuai dengan filter dari URL
+                    if (initialKecamatanFromUrl) {
+                        selectKecamatan.value = initialKecamatanFromUrl;
+                        initialKecamatanFromUrl = ''; // Reset agar filter manual setelahnya bisa bekerja bebas
+                    }
+                    
+                    kecamatanLoaded = true;
+                }
+
+                // 2. Stat Cards & Info Top
+                document.getElementById('stat-menunggu').innerText = data.ringkas.menunggu;
+                document.getElementById('stat-ditindaklanjuti').innerText = data.ringkas.ditindaklanjuti;
+                document.getElementById('stat-selisih').innerText = data.ringkas.selisih;
+                document.getElementById('stat-selesai').innerText = data.ringkas.selesai;
+
+                txtTotalInfo.innerText = `${data.total} permohonan tercatat — data dari Hublang`;
+
+                if (filterTahun || filterBulan) {
+                    txtPeriodeInfo.innerText = `${filterBulan}/${filterTahun}`;
+                    badgePeriodeArea.style.display = 'block';
+                }
+
+                // 3. Render Tabel
+                tbody.innerHTML = '';
+                if (!data.rows || data.rows.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="13" class="text-secondary text-center py-3">Belum ada data permohonan yang cocok.</td></tr>';
+                    paginationContainer.style.display = 'none';
+                    return;
+                }
+
+                let no = (currentPage - 1) * 30 + 1;
+                data.rows.forEach(r => {
+                    tbody.appendChild(buatPermohonanTr(r, no));
+                    no++;
+                });
+
+                // 4. Update Navigasi Pagination
+                lastTotalPages = data.total_pages;
+                txtCurrentPage.innerText = data.page;
+                txtTotalPages.innerText = data.total_pages;
+                inputGotoPage.max = data.total_pages;
+                btnPrevPage.disabled = data.page <= 1;
+                btnNextPage.disabled = data.page >= data.total_pages;
+                paginationContainer.style.display = data.total_pages > 1 ? 'flex' : 'none';
+
+                currentPage = data.page;
+            })
+            .catch(err => {
+                console.error("Gagal memuat list permohonan:", err);
+                tbody.innerHTML = '<tr><td colspan="13" class="text-danger text-center py-3">Terjadi kesalahan memuat data.</td></tr>';
+            });
+    }
+
+    loadPermohonan();
+});
+</script>
+{% endblock %}
+
+{% block print_header %}
+<div style="display:flex; align-items:center; gap:12px;">
+  <div style="flex:0 0 80px;">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="logo" style="max-height:60px; max-width:80px;" onerror="this.style.display='none'">
+  </div>
+  <div style="flex:1; text-align:center; font-size:12px;">
+    <div style="font-weight:800; font-size:14px;">LAPORAN SEMUA PERMOHONAN YANG MASUK</div>
+    <div style="margin-top:4px; font-weight:600;">DATA PERMOHONAN</div>
+  </div>
+</div>
+{% endblock %}

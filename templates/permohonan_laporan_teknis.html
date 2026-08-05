@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Kinerja Supervisi Teknik{% endblock %}
+{% block content %}
+
+<!-- Bagian Kontrol & Input (Otomatis Sembunyi Saat Cetak / PDF) -->
+<div class="no-print mb-4">
+  <h4 class="fw-bold mb-1">Kinerja Supervisi Teknik/Gambar/Perhitungan</h4>
+  <div class="text-secondary mb-3" style="font-size:13px">Rekap teknis per bulan &mdash; panjang pipa dan hasil pengiriman ke Hublang</div>
+
+  <!-- Form Filter Tahun & Bulan -->
+  <form class="row g-2 mb-3" style="max-width: 600px;" id="form-filter-teknis">
+    <div class="col-md-5">
+      <select class="form-select form-select-sm" id="select-tahun"></select>
+    </div>
+    <div class="col-md-5">
+      <select class="form-select form-select-sm" id="select-bulan"></select>
+    </div>
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Tampilkan</button>
+    </div>
+  </form>
+
+  <!-- Card Input Tanda Tangan -->
+  <div class="card border-0 shadow-sm bg-light mb-3" style="max-width: 750px;">
+    <div class="card-body py-2 px-3">
+      <div class="fw-bold mb-2 text-dark" style="font-size:13px">Tanda Diketahui</div>
+      <div class="row g-2">
+        <div class="col-md-6">
+          <input type="text" class="form-control form-control-sm mb-1" id="input-keterangan-kiri" value="Diperiksa Oleh :" oninput="updateFooterTTD()" placeholder="Keterangan Kiri">
+          <input type="text" class="form-control form-control-sm mb-1" id="input-jabatan-kiri" value="Kabag Perencana & Supervisi" oninput="updateFooterTTD()" placeholder="Jabatan Kiri">
+          <input type="text" class="form-control form-control-sm" id="input-nama-kiri" placeholder="Nama Pemangku Jabatan (Kiri)" oninput="updateFooterTTD()">
+        </div>
+        <div class="col-md-6">
+          <input type="text" class="form-control form-control-sm mb-1" id="input-kota-tgl" value="Pematangsiantar, {{ today }}" oninput="updateFooterTTD()" placeholder="Kota & Tanggal">
+          <input type="text" class="form-control form-control-sm mb-1" id="input-keterangan-kanan" value="Diperbuat Oleh :" oninput="updateFooterTTD()" placeholder="Keterangan Kanan">
+          <input type="text" class="form-control form-control-sm mb-1" id="input-jabatan-kanan" value="Kasubbag Perencana Jaringan" oninput="updateFooterTTD()" placeholder="Jabatan Kanan">
+          <input type="text" class="form-control form-control-sm" id="input-nama-kanan" placeholder="Nama Pemangku Jabatan (Kanan)" oninput="updateFooterTTD()">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tombol Aksi -->
+  <div class="d-flex gap-2">
+    <button onclick="window.print()" class="btn btn-primary btn-sm fw-bold px-3">Cetak / simpan sebagai PDF</button>
+    <a id="btn-export-xlsx" href="#" class="btn btn-outline-secondary btn-sm">Unduh sebagai .xlsx</a>
+  </div>
+</div>
+
+<hr class="no-print my-4">
+
+<!-- AREA CETAK -->
+<div class="stat-card bg-white p-4 rounded border shadow-sm" id="area-cetak" style="overflow-x:auto">
+  <div class="text-center mb-3">
+    <div style="flex:0 0 80px;">
+      <img src="{{ url_for('static', filename='logo.png') }}" alt="logo" style="max-height:60px; max-width:80px;" onerror="this.style.display='none'">
+    </div>
+    <div class="fw-bold" style="font-size:14px">LAPORAN KINERJA SUPERVISI TEKNIK/GAMBAR/PERHITUNGAN TEKNIS PERMOHONAN SAMBUNGAN INSTALASI BARU DAN BUKA KEMBALI</div>
+    <div style="font-size:12.5px" id="txt-header-periode">BULAN: -</div>
+  </div>
+
+  <div id="container-tabel-teknis">
+    <div class="text-center text-secondary py-3">Memuat laporan teknis...</div>
+  </div>
+
+  <!-- FOOTER TANDA TANGAN SIMETRIS (text-center) -->
+  <div class="footer-ttd mt-4" style="page-break-inside: avoid;">
+    <div class="d-flex justify-content-between text-dark" style="font-size: 12px; font-family: sans-serif;">
+      
+      <!-- KIRI -->
+      <div style="min-width: 250px;" class="text-center">
+        <div style="height: 18px;"></div>
+        <div id="txt-keterangan-kiri">Diperiksa Oleh :</div>
+        <div id="txt-jabatan-kiri" class="fw-semibold">Kabag Perencana & Supervisi</div>
+        <div style="height: 60px;"></div>
+        <div id="txt-nama-kiri" class="fw-bold text-decoration-underline">NAMA</div>
+      </div>
+
+      <!-- KANAN -->
+      <div style="min-width: 250px;" class="text-center">
+        <div id="txt-kota-tgl" class="mb-1">Pematangsiantar, {{ today }}</div>
+        <div id="txt-keterangan-kanan">Diperbuat Oleh :</div>
+        <div id="txt-jabatan-kanan" class="fw-semibold">Kasubbag Perencana Jaringan</div>
+        <div style="height: 60px;"></div>
+        <div id="txt-nama-kanan" class="fw-bold text-decoration-underline">NAMA</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript Logic -->
+<script>
+function updateFooterTTD() {
+  const nk = document.getElementById('input-nama-kiri').value;
+  const nkn = document.getElementById('input-nama-kanan').value;
+
+  document.getElementById('txt-keterangan-kiri').innerText = document.getElementById('input-keterangan-kiri').value;
+  document.getElementById('txt-jabatan-kiri').innerText = document.getElementById('input-jabatan-kiri').value;
+  document.getElementById('txt-nama-kiri').innerText = nk ? nk : "NAMA";
+
+  document.getElementById('txt-kota-tgl').innerText = document.getElementById('input-kota-tgl').value;
+  document.getElementById('txt-keterangan-kanan').innerText = document.getElementById('input-keterangan-kanan').value;
+  document.getElementById('txt-jabatan-kanan').innerText = document.getElementById('input-jabatan-kanan').value;
+  document.getElementById('txt-nama-kanan').innerText = nkn ? nkn : "NAMA";
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    let filterLoaded = false;
+    const urlParams = new URLSearchParams(window.location.search);
+    let tahunParam = urlParams.get('tahun') || '';
+    let bulanParam = urlParams.get('bulan') || '';
+
+    const form = document.getElementById('form-filter-teknis');
+    const selectTahun = document.getElementById('select-tahun');
+    const selectBulan = document.getElementById('select-bulan');
+    const containerTabel = document.getElementById('container-tabel-teknis');
+    const btnExport = document.getElementById('btn-export-xlsx');
+    const txtHeaderPeriode = document.getElementById('txt-header-periode');
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        loadLaporanTeknis(selectTahun.value, selectBulan.value);
+    });
+
+    function loadLaporanTeknis(t, b) {
+        fetch(`/api/permohonan-laporan-teknis-stats?tahun=${t}&bulan=${b}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!filterLoaded) {
+                    selectTahun.innerHTML = '';
+                    data.tahun_list.forEach(tahunVal => {
+                        const opt = document.createElement('option');
+                        opt.value = tahunVal;
+                        opt.innerText = tahunVal;
+                        if (tahunVal === data.tahun) opt.selected = true;
+                        selectTahun.appendChild(opt);
+                    });
+
+                    selectBulan.innerHTML = '';
+                    data.nama_bulan_list.forEach(([num, nama]) => {
+                        const val = String(num).padStart(2, '0');
+                        const opt = document.createElement('option');
+                        opt.value = val;
+                        opt.innerText = nama;
+                        if (val === data.bulan) opt.selected = true;
+                        selectBulan.appendChild(opt);
+                    });
+
+                    filterLoaded = true;
+                }
+
+                txtHeaderPeriode.innerText = `BULAN: ${data.nama_bulan.toUpperCase()} ${data.tahun}`;
+                btnExport.href = `/permohonan/laporan/teknis/unduh?tahun=${data.tahun}&bulan=${data.bulan}`;
+
+                const daftarKet = data.daftar_keterangan;
+                const h = data.hasil;
+
+                let thKetHeader = daftarKet.map(k => `<th rowspan="2" class="align-middle">${k}</th>`).join('');
+                
+                let sibKetCells = daftarKet.map(k => `<td>${h.SIB.detail_keterangan[k] || '-'}</td>`).join('');
+                let bkKetCells = daftarKet.map(k => `<td>${h.BK.detail_keterangan[k] || '-'}</td>`).join('');
+                let totalKetCells = daftarKet.map(k => `<td>${(h.SIB.detail_keterangan[k] || 0) + (h.BK.detail_keterangan[k] || 0)}</td>`).join('');
+
+                containerTabel.innerHTML = `
+                <table class="table table-sm table-bordered mb-4" style="font-size:11px; min-width:1000px">
+                  <tr class="text-center fw-bold bg-light">
+                    <th rowspan="3" class="align-middle">Jenis Permohonan</th>
+                    <th colspan="2">Permohonan Masuk</th>
+                    <th colspan="4">Realisasi Gambar/Perhitungan</th>
+                    <th colspan="${daftarKet.length + 1}">Keterangan (Dikirim ke Hublang)</th>
+                  </tr>
+                  <tr class="text-center fw-bold bg-light">
+                    <th rowspan="2" class="align-middle">Dari Hublang</th>
+                    <th rowspan="2" class="align-middle">Ke Perencana</th>
+                    <th rowspan="2" class="align-middle">Disurvei</th>
+                    <th colspan="2">Panjang Pipa</th>
+                    <th rowspan="2" class="align-middle">Di Kirim ke Hublang</th>
+                    ${thKetHeader}
+                    <th rowspan="2" class="align-middle">Jumlah</th>
+                  </tr>
+                  <tr class="text-center fw-bold bg-light">
+                    <th>&le;10 Meter</th>
+                    <th>&gt;10m (P.Distribusi)</th>
+                  </tr>
+
+                  <tr class="text-center">
+                    <td class="text-start">Sambungan Instalasi Baru (SIB)</td>
+                    <td>${h.SIB.dari_hublang || '-'}</td>
+                    <td>${h.SIB.ke_perencana || '-'}</td>
+                    <td>${h.SIB.disurvei || '-'}</td>
+                    <td>${h.SIB.pipa_pendek || '-'}</td>
+                    <td>${h.SIB.pipa_panjang || '-'}</td>
+                    <td>${h.SIB.dikirim || '-'}</td>
+                    ${sibKetCells}
+                    <td class="fw-bold">${h.SIB.jumlah_ket}</td>
+                  </tr>
+
+                  <tr class="text-center">
+                    <td class="text-start">Buka Kembali (BK)</td>
+                    <td>${h.BK.dari_hublang || '-'}</td>
+                    <td>${h.BK.ke_perencana || '-'}</td>
+                    <td>${h.BK.disurvei || '-'}</td>
+                    <td>${h.BK.pipa_pendek || '-'}</td>
+                    <td>${h.BK.pipa_panjang || '-'}</td>
+                    <td>${h.BK.dikirim || '-'}</td>
+                    ${bkKetCells}
+                    <td class="fw-bold">${h.BK.jumlah_ket}</td>
+                  </tr>
+
+                  <tr class="fw-bold text-center bg-light">
+                    <td>JUMLAH</td>
+                    <td>${h.SIB.dari_hublang + h.BK.dari_hublang}</td>
+                    <td>${h.SIB.ke_perencana + h.BK.ke_perencana}</td>
+                    <td>${h.SIB.disurvei + h.BK.disurvei}</td>
+                    <td>${h.SIB.pipa_pendek + h.BK.pipa_pendek}</td>
+                    <td>${h.SIB.pipa_panjang + h.BK.pipa_panjang}</td>
+                    <td>${h.SIB.dikirim + h.BK.dikirim}</td>
+                    ${totalKetCells}
+                    <td>${h.SIB.jumlah_ket + h.BK.jumlah_ket}</td>
+                  </tr>
+                </table>`;
+            });
+    }
+
+    loadLaporanTeknis(tahunParam, bulanParam);
+});
+</script>
+{% endblock %}

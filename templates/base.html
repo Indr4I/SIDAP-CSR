@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="id" class="notranslate">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="google" content="notranslate">
+<link rel="shortcut icon" href="{{ url_for('static', filename='SIDAP.ico') }}" type="image/x-icon">
+<title>SIDAP - {% block title %}{% endblock %}</title>
+<link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+<script src="{{ url_for('static', filename='sweetalert2.all.min.js') }}"></script>
+</head>
+<body>
+<div class="app-frame d-flex">
+  
+  <!-- SIDEBAR NAVIGASI -->
+  <div class="sidebar flex-shrink-0 d-flex flex-column justify-content-between" style="min-height: 100vh;">
+    
+    <!-- WRAPPER ATAS: Semua menu navigasi -->
+    <div>
+      <div class="brand">SI<span>DAP</span></div>
+      <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint=='dashboard' }}"><span class="nav-emoji">📊</span>Dashboard</a>
+
+      <div class="section-label">Permohonan</div>
+      <a href="{{ url_for('permohonan_list') }}" class="{{ 'active' if request.endpoint in ['permohonan_list', 'permohonan_tambah', 'permohonan_edit'] }}"><span class="nav-emoji">📝</span>Semua Permohonan</a>
+      <a href="{{ url_for('permohonan_kecamatan') }}" class="{{ 'active' if request.endpoint=='permohonan_kecamatan' }}"><span class="nav-emoji">📍</span>Kecamatan</a>
+      <a href="{{ url_for('permohonan_periode') }}" class="{{ 'active' if request.endpoint=='permohonan_periode' }}"><span class="nav-emoji">📅</span>Tahun &amp; Bulan</a>
+      <a href="{{ url_for('permohonan_cari') }}" class="{{ 'active' if request.endpoint=='permohonan_cari' }}"><span class="nav-emoji">🔍</span>Cari Permohonan</a>
+      <a href="{{ url_for('permohonan_laporan') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('permohonan_laporan') }}"><span class="nav-emoji">🖨️</span>Laporan</a>
+
+      <div class="section-label">Terpasang</div>
+      <a href="{{ url_for('pelanggan_list') }}" class="{{ 'active' if request.endpoint in ['pelanggan_list','pelanggan_tambah','instalasi_edit','instalasi_tambah'] }}"><span class="nav-emoji">👥</span>Semua Pelanggan</a>
+      <a href="{{ url_for('kecamatan_list') }}" class="{{ 'active' if request.endpoint=='kecamatan_list' }}"><span class="nav-emoji">📍</span>Kecamatan</a>
+      <a href="{{ url_for('periode_list') }}" class="{{ 'active' if request.endpoint=='periode_list' }}"><span class="nav-emoji">📅</span>Tahun &amp; Bulan</a>
+      <a href="{{ url_for('cari_pelanggan') }}" class="{{ 'active' if request.endpoint=='cari_pelanggan' }}"><span class="nav-emoji">🔍</span>Cari Pelanggan</a>
+      <a href="{{ url_for('laporan_bulanan') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('laporan_bulanan') }}"><span class="nav-emoji">🖨️</span>Laporan</a>
+      <a href="{{ url_for('laporan_pertambahan') }}" class="{{ 'active' if request.endpoint=='laporan_pertambahan' }}"><span class="nav-emoji">📊</span>Pertambahan Sambungan</a>
+      
+      <div class="section-label">Lainnya</div>
+      <a href="{{ url_for('permohonan_impor') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('permohonan_impor') }}"><span class="nav-emoji">📥</span>Impor Permohonan</a>
+      <a href="{{ url_for('pelanggan_impor') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('pelanggan_impor') }}"><span class="nav-emoji">📥</span>Impor Pelanggan</a>
+      <a href="{{ url_for('panduan_penggunaan') }}" class="nav-link"><span class="nav-emoji">📄</span> Panduan Penggunaan</a>
+    </div>
+
+    <!-- WRAPPER BAWAH: Copyright -->
+    <div class="mt-auto p-3 text-secondary border-top no-print" style="font-size: 11px;">
+      <div class="fw-bold text-dark">SIDAP v1.5.0</div>
+      <div>Sistem Informasi Data Pelanggan</div>
+      <div class="mt-1" style="font-size: 10px; color: #888; line-height: 1.3;">
+        &copy; 2026 Tim PKL TI<br>
+        STIKOM Tunas Bangsa Pematangsiantar
+      </div>
+    </div>
+
+  </div>
+
+  <!-- AREA KONTEN UTAMA -->
+  <div class="flex-grow-1 p-4 main-area">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, m in messages %}
+          <div class="alert alert-{{ 'danger' if category=='error' else 'success' }} py-2 no-print">{{ m }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="print-only print-header" style="display:none; margin-bottom:12px;">
+      {% block print_header %}{% endblock %}
+    </div>
+
+    {% block content %}{% endblock %}
+  </div>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    let formIsDirty = false;
+
+    // 1. Deteksi perubahan input form (Abaikan form filter pencarian)
+    document.querySelectorAll('form').forEach(form => {
+        if (form.id === 'form-filter' || form.id === 'form-cari') return;
+
+        form.addEventListener('change', () => { formIsDirty = true; });
+        form.addEventListener('input', () => { formIsDirty = true; });
+        form.addEventListener('submit', () => { formIsDirty = false; });
+    });
+
+    // 2. Cegat klik menu Sidebar jika ada perubahan form yang belum disimpan
+    document.querySelectorAll('.sidebar a').forEach(link => {
+        link.addEventListener('click', function(e) {
+            if (formIsDirty) {
+                e.preventDefault(); // Batalkan navigasi bawaan
+                const targetUrl = this.href;
+
+                Swal.fire({
+                    title: 'Tinggalkan Halaman?',
+                    text: 'Perubahan yang Anda buat belum disimpan!',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Tinggalkan',
+                    cancelButtonText: 'Batal',
+                    reverseButtons: true,
+                    customClass: {
+                        confirmButton: 'btn btn-danger px-3 me-2',
+                        cancelButton: 'btn btn-secondary px-3'
+                    },
+                    buttonsStyling: false
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        formIsDirty = false; // Matikan flag agar tidak terpicu beforeunload
+                        window.location.href = targetUrl; // Pindah halaman
+                    }
+                });
+            }
+        });
+    });
+
+    // 3. Peringatan bawaan browser jika pengguna menutup tab / refresh (F5)
+    window.addEventListener('beforeunload', function(e) {
+        if (formIsDirty) {
+            e.preventDefault();
+            e.returnValue = ''; 
+        }
+    });
+});
+
+// Penanganan Header Cetak (Print)
+(function(){
+  function hideHeaders(){
+    document.querySelectorAll('.print-header').forEach(function(el){ el.style.display = 'none'; });
+  }
+  function showHeaders(){
+    document.querySelectorAll('.print-header').forEach(function(el){ el.style.display = 'block'; });
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    hideHeaders();
+    if (window.matchMedia) {
+      var mq = window.matchMedia('print');
+      try { mq.addListener(function(m){ m.matches ? showHeaders() : hideHeaders(); }); } catch(e) {}
+    }
+    window.addEventListener('beforeprint', showHeaders);
+    window.addEventListener('afterprint', hideHeaders);
+  });
+})();
+
+// Proteksi Aplikasi: Klik kanan & Shortcut Inspect
+document.addEventListener('contextmenu', function(e) { e.preventDefault(); }, false);
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'F12' || e.keyCode === 123) { e.preventDefault(); return false; }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) {
+        e.preventDefault(); return false;
+    }
+    if (e.ctrlKey && (e.key === 'U' || e.key === 'u')) { e.preventDefault(); return false; }
+}, false);
+
+// Fungsi Global Konfirmasi Hapus Data dengan SweetAlert2
+function konfirmasiHapus(event, formElement, pesan = "Data yang dihapus tidak dapat dikembalikan!") {
+    event.preventDefault(); // Cegah form langsung terkirim
+    
+    Swal.fire({
+        title: 'Apakah Anda Yakin?',
+        text: pesan,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545', 
+        cancelButtonColor: '#6c757d',  
+        confirmButtonText: 'Ya, Hapus!',
+        cancelButtonText: 'Batal',
+        reverseButtons: true,
+        customClass: {
+            confirmButton: 'btn btn-danger px-3 me-2',
+            cancelButton: 'btn btn-secondary px-3'
+        },
+        buttonsStyling: false
+    }).then((result) => {
+        if (result.isConfirmed) {
+            formElement.submit(); // Kirim form jika user menekan 'Ya, Hapus!'
+        }
+    });
+}
+</script>
+
+</body>
+</html>

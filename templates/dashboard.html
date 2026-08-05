@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-1">Dashboard SIDAP</h4>
+<div class="text-secondary mb-3" style="font-size:13px">{{ today }}</div>
+
+<!-- ================================================================= -->
+<!-- 1. BAGIAN RINGKASAN TERPASANG -->
+<!-- ================================================================= -->
+<div class="fw-bold mt-4 mb-2" style="font-size:15px; color:#1d3f78">Ringkasan Terpasang</div>
+<div class="row g-3 mb-4">
+  <div class="col-3"><div class="stat-card"><div class="label">Total pelanggan</div><div class="value" id="stat-total-pelanggan">...</div></div></div>
+  <div class="col-3"><div class="stat-card"><div class="label">Kecamatan tercakup</div><div class="value" id="stat-total-kecamatan">...</div></div></div>
+  <div class="col-3"><div class="stat-card"><div class="label">Pasang bulan ini</div><div class="value" id="stat-pasang-bulan-ini">...</div></div></div>
+  <div class="col-3"><div class="stat-card"><div class="label">SIB / BK</div><div class="value" id="stat-sib-bk">...</div></div></div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Per Kecamatan Terpasang -->
+  <div class="col-6">
+    <div class="stat-card">
+      <div class="fw-bold mb-2" style="font-size:14px">Per kecamatan (Terpasang)</div>
+      <div id="container-kecamatan">
+        <p class="text-muted" style="font-size:12px">Memuat data...</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Chart Tren Terpasang -->
+  <div class="col-6">
+    <div class="stat-card">
+      <div class="fw-bold mb-2" style="font-size:14px">Pemasangan terakhir (Tren)</div>
+      <div style="position: relative; height: 220px; width: 100%;">
+        <canvas id="chartPemasangan"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabel Input Terbaru (Terpasang) -->
+<div class="stat-card mt-3 mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="fw-bold" style="font-size:14px">Input terbaru</div>
+    <a href="{{ url_for('pelanggan_list') }}" class="text-decoration-none fw-semibold" style="font-size:12px; color:#0d6efd;">Lihat Semua &rarr;</a>
+  </div>
+  <table class="table table-sm" style="font-size:12px">
+    <thead>
+      <tr><th>Nama</th><th>Kecamatan</th><th>No. Instalasi</th><th>Tgl Pasang</th><th>Status</th></tr>
+    </thead>
+    <tbody id="tabel-input-terbaru">
+      <tr><td colspan="5" class="text-muted text-center py-2">Memuat data terbaru...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ================================================================= -->
+<!-- 2. BAGIAN RINGKASAN PERMOHONAN -->
+<!-- ================================================================= -->
+<div class="fw-bold mt-4 mb-2" style="font-size:15px; color:#1d3f78">Ringkasan Permohonan</div>
+<div class="row g-3 mb-3">
+  <div class="col-3"><div class="stat-card"><div class="label">Total permohonan</div><div class="value" id="stat-total-permohonan">...</div></div></div>
+  <div class="col-3"><div class="stat-card"><div class="label">Menunggu survey</div><div class="value" id="stat-permohonan-menunggu">...</div></div></div>
+  <div class="col-3"><div class="stat-card"><div class="label">Selisih</div><div class="value" id="stat-permohonan-selisih" style="color:#b45309">...</div></div></div>
+  <div class="col-3"><div class="stat-card"><div class="label">Sudah jadi instalasi</div><div class="value" id="stat-permohonan-selesai" style="color:#15803d">...</div></div></div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Per Kecamatan Permohonan -->
+  <div class="col-6">
+    <div class="stat-card">
+      <div class="fw-bold mb-2" style="font-size:14px">Per kecamatan (Permohonan)</div>
+      <div id="container-kecamatan-permohonan">
+        <p class="text-muted" style="font-size:12px">Memuat data...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart Tren Permohonan -->
+  <div class="col-6">
+    <div class="stat-card">
+      <div class="fw-bold mb-2" style="font-size:14px">Permohonan masuk (Tren)</div>
+      <div style="position: relative; height: 220px; width: 100%;">
+        <canvas id="chartPermohonan"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabel Permohonan Terbaru -->
+<div class="stat-card mt-3 mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="fw-bold" style="font-size:14px">Permohonan terbaru</div>
+    <a href="{{ url_for('permohonan_list') }}" class="text-decoration-none fw-semibold" style="font-size:12px; color:#0d6efd;">Lihat Semua &rarr;</a>
+  </div>
+  <table class="table table-sm" style="font-size:12px">
+    <thead>
+      <tr><th>Nama</th><th>Kecamatan</th><th>Jenis</th><th>Tgl Permohonan</th></tr>
+    </thead>
+    <tbody id="tabel-permohonan-terbaru">
+      <tr><td colspan="4" class="text-muted text-center py-2">Memuat data terbaru...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- SCRIPT LOGIC FETCH API -->
+<script src="{{ url_for('static', filename='chart.js') }}"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    fetch('/api/dashboard-stats')
+        .then(response => response.json())
+        .then(data => {
+          
+            // --- 1. Data Terpasang ---
+            document.getElementById('stat-total-pelanggan').innerText = data.total_pelanggan || 0;
+            document.getElementById('stat-total-kecamatan').innerText = data.total_kecamatan || 0;
+            document.getElementById('stat-pasang-bulan-ini').innerText = data.pasang_bulan_ini || 0;
+            document.getElementById('stat-sib-bk').innerText = data.sib_bk || '0 / 0';
+
+            // Progress Bar Kecamatan Terpasang
+            const containerKecamatan = document.getElementById('container-kecamatan');
+            containerKecamatan.innerHTML = '';
+            if (data.per_kecamatan && data.per_kecamatan.length > 0) {
+                const maxKecamatan = Math.max(...data.per_kecamatan.map(o => o.c));
+                data.per_kecamatan.forEach(r => {
+                    const percent = Math.round((r.c / maxKecamatan) * 100);
+                    containerKecamatan.insertAdjacentHTML('beforeend', `
+                        <div class="d-flex justify-content-between" style="font-size:12px"><span>${r.kecamatan}</span><span>${r.c}</span></div>
+                        <div class="progress mb-2" style="height:6px"><div class="progress-bar" style="width:${percent}%"></div></div>
+                    `);
+                });
+            } else {
+                containerKecamatan.innerHTML = '<p class="text-muted" style="font-size:12px">Belum ada data kecamatan terpasang.</p>';
+            }
+
+            // Chart Tren Terpasang
+            const labelBulan = (data.per_bulan || []).map(item => item.bulan);
+            const jumlahPemasangan = (data.per_bulan || []).map(item => item.c);
+            const ctx1 = document.getElementById('chartPemasangan').getContext('2d');
+            new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: labelBulan,
+                    datasets: [{
+                        label: 'Jumlah Terpasang',
+                        data: jumlahPemasangan,
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.05)',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        fill: true,
+                        pointBackgroundColor: '#0d6efd',
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // Render Tabel Input Terbaru (Terpasang)
+            const tbodyTerbaru = document.getElementById('tabel-input-terbaru');
+            if (!data.recent || data.recent.length === 0) {
+                tbodyTerbaru.innerHTML = '<tr><td colspan="5" class="text-muted text-center py-2">Belum ada data terbaru.</td></tr>';
+            } else {
+                tbodyTerbaru.innerHTML = data.recent.map(r => {
+                    const badgeClass = r.status === 'SIB' ? 'badge-sib' : 'badge-bk';
+                    return `
+                        <tr>
+                            <td>${r.nama || '-'}</td>
+                            <td>${r.kecamatan || '-'}</td>
+                            <td>${r.nomor_instalasi || '-'}</td>
+                            <td>${r.tanggal_pasang || '-'}</td>
+                            <td><span class="badge ${badgeClass}">${r.status || '-'}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // --- 2. Data Permohonan ---
+            document.getElementById('stat-total-permohonan').innerText = data.total_permohonan || 0;
+            document.getElementById('stat-permohonan-menunggu').innerText = data.permohonan_menunggu || 0;
+            document.getElementById('stat-permohonan-selisih').innerText = data.permohonan_selisih || 0;
+            document.getElementById('stat-permohonan-selesai').innerText = data.permohonan_selesai || 0;
+
+            // Progress Bar Kecamatan Permohonan
+            const containerKecPermohonan = document.getElementById('container-kecamatan-permohonan');
+            containerKecPermohonan.innerHTML = '';
+            if (data.per_kecamatan_permohonan && data.per_kecamatan_permohonan.length > 0) {
+                const maxKecPerm = Math.max(...data.per_kecamatan_permohonan.map(o => o.c));
+                data.per_kecamatan_permohonan.forEach(r => {
+                    const percent = Math.round((r.c / maxKecPerm) * 100);
+                    containerKecPermohonan.insertAdjacentHTML('beforeend', `
+                        <div class="d-flex justify-content-between" style="font-size:12px"><span>${r.kecamatan}</span><span>${r.c}</span></div>
+                        <div class="progress mb-2" style="height:6px"><div class="progress-bar" style="width:${percent}%; background-color: #09c2fa"></div></div>
+                    `);
+                });
+            } else {
+                containerKecPermohonan.innerHTML = '<p class="text-muted" style="font-size:12px">Belum ada data permohonan per kecamatan.</p>';
+            }
+
+            // Chart Tren Permohonan
+            if (data.per_bulan_permohonan && data.per_bulan_permohonan.length > 0) {
+                const labelBulanPerm = data.per_bulan_permohonan.map(item => item.bulan);
+                const jumlahPerm = data.per_bulan_permohonan.map(item => item.c);
+                const ctx2 = document.getElementById('chartPermohonan').getContext('2d');
+                new Chart(ctx2, {
+                    type: 'line',
+                    data: {
+                        labels: labelBulanPerm,
+                        datasets: [{
+                            label: 'Jumlah Permohonan',
+                            data: jumlahPerm,
+                            borderColor: '#09c2fa',
+                            backgroundColor: 'rgba(7, 247, 255, 0.05)',
+                            borderWidth: 3,
+                            tension: 0.3,
+                            fill: true,
+                            pointBackgroundColor: '#09c2fa',
+                            pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+
+            // Render Tabel Permohonan Terbaru
+            const tbodyPermohonan = document.getElementById('tabel-permohonan-terbaru');
+            if (!data.recent_permohonan || data.recent_permohonan.length === 0) {
+                tbodyPermohonan.innerHTML = '<tr><td colspan="4" class="text-muted text-center py-2">Belum ada permohonan.</td></tr>';
+            } else {
+                tbodyPermohonan.innerHTML = data.recent_permohonan.map(r => {
+                    const badgeClass = r.jenis === 'SIB' ? 'badge-sib' : 'badge-bk';
+                    return `
+                        <tr>
+                            <td>${r.nama_pelanggan || '-'}</td>
+                            <td>${r.kecamatan || '-'}</td>
+                            <td><span class="badge ${badgeClass}">${r.jenis || '-'}</span></td>
+                            <td>${r.tanggal_permohonan || '-'}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        })
+        .catch(err => console.error("Gagal memuat data dashboard:", err));
+});
+</script>
+{% endblock %}
